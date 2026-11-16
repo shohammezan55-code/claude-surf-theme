@@ -56,14 +56,21 @@ function night(): string {
   )
 }
 
-// A wisp of fog that drifts past the mountain.
+// A wisp of fog that drifts past the mountain: warm in the day's light, and a
+// dim grey-blue at night, when the scene under it is darkened.
 function fog(): string {
+  const wisp = (id: string, color: string, strength: number): string =>
+    `<radialGradient id="${id}"><stop offset="0" stop-color="${color}" stop-opacity="${strength}"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`
+  const shapes =
+    '<ellipse cx="800" cy="318" rx="210" ry="26"/><ellipse cx="700" cy="336" rx="150" ry="20"/><ellipse cx="930" cy="304" rx="130" ry="18"/>'
+
   return (
     OPEN +
-    '<defs><radialGradient id="wisp"><stop offset="0" stop-color="#fdeedd" stop-opacity=".75"/><stop offset="1" stop-color="#fdeedd" stop-opacity="0"/></radialGradient></defs>' +
-    '<g fill="url(#wisp)">' +
-    '<ellipse cx="800" cy="318" rx="210" ry="26"/><ellipse cx="700" cy="336" rx="150" ry="20"/><ellipse cx="930" cy="304" rx="130" ry="18"/>' +
-    '</g></svg>'
+    NIGHT_VAR +
+    `<defs>${wisp('day', '#fdeedd', 0.75)}${wisp('dusk', '#7d8598', 0.4)}</defs>` +
+    `<g fill="url(#day)" style="opacity:calc(1 - var(--night))">${shapes}</g>` +
+    `<g fill="url(#dusk)" style="opacity:var(--night)">${shapes}</g>` +
+    '</svg>'
   )
 }
 
