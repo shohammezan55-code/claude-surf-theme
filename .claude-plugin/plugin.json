@@ -1,6 +1,8 @@
 {
   "name": "nami-waves",
-  "version": "1.0.0",
-  "description": "A sunset surf-break theme for the Claude desktop app: fog-wrapped mountain, sandy beach and a pixel surfer, with matching interface colors.",
-  "author": { "name": "shohammezan55-code" }
+  "version": "1.1.0",
+  "description": "A sunset surf-break theme for the Claude desktop app: fog-wrapped mountain, sandy beach and a pixel surfer gliding along the wave, with matching interface colors.",
+  "author": {
+    "name": "shohammezan55-code"
+  }
 }

@@ -1,6 +1,7 @@
-import type { Register, ThemeSetArgs } from 'claude-code'
+import type { Register, ThemeSetArgs, Timer } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
+import { RIDER, RIDER_DEFS } from './motion.ts'
 import { SCENE } from './scene.ts'
 
 // A hazy sunset surf break traced from a photo, with a pixel surfer; colors from the sky and the sea.
@@ -34,9 +35,48 @@ const { theme, problems } = makeColors({
   },
 })
 
+// The app holds animation still in this scene, so the surfer moves like a
+// flipbook: a timer steps `frame` and asks for a redraw of the small top layer
+// with the rider in a new pose. The scene underneath never changes.
+const FRAMES = 140
+const STEP_MS = 130
+let frame = 0
+let ticker: Timer | undefined
+
+// One pass along the whole wave: from the break on the right to the far end on
+// the left, carving up and down the face five times, fading in and out at the
+// ends so the restart at the break doesn't jump.
+const RUN = 1050
+const CARVES = 5
+
+function pose(n: number): { x: number; y: number; tilt: number; fade: number } {
+  const t = (n % FRAMES) / FRAMES
+  const wave = Math.sin(2 * Math.PI * CARVES * t)
+
+  return {
+    x: -RUN * t,
+    y: 30 * t + 14 * wave,
+    tilt: 10 * Math.cos(2 * Math.PI * CARVES * t),
+    fade: Math.min(1, t / 0.06, (1 - t) / 0.06),
+  }
+}
+
+function riderLayer(n: number): string {
+  const { x, y, tilt, fade } = pose(n)
+  const r = (v: number): string => v.toFixed(1)
+
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
+    RIDER_DEFS +
+    `<g opacity="${r(fade)}" transform="translate(${r(1250 + x)},${r(620 + y)}) rotate(${r(tilt - 13)} 40 60)">` +
+    RIDER +
+    '</g></svg>'
+  )
+}
+
 const LOOK: ThemeSetArgs = {
   colors: theme,
-  backdrop: { scene: 'nami', glass: { blur: 1, opacity: 0.4 } },
+  backdrop: { scene: 'nami-layers', glass: { blur: 1, opacity: 0.4 } },
 }
 
 export const register: Register = on => {
@@ -48,6 +88,12 @@ export const register: Register = on => {
     }
     const set = await $.theme.set(LOOK)
 
+    ticker?.cancel()
+    ticker = $.clock.every(STEP_MS, () => {
+      frame = (frame + 1) % FRAMES
+      $.ui.invalidate('ui.render')
+    })
+
     // A reload can run before the window attaches; keep the status line clear.
     $.ui.status(undefined)
 
@@ -58,12 +104,21 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // Two layers: the still scene underneath, and a small top layer redrawn with
+  // the surfer in each new pose.
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
-    if (e.props.scene !== 'nami' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
+    if (e.props.scene !== 'nami-layers' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
     }
-    const { Svg } = $.ui.resolve(e)
+    const { Box, Svg } = $.ui.resolve(e)
 
-    return <Svg source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain, with a little orange pixel character carving the wave" isInteractive />
+    return (
+      <Box position="relative" width="100%" height="100%">
+        <Svg source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
+        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+          <Svg source={riderLayer(frame)} alt="A little orange pixel character carving the wave" />
+        </Box>
+      </Box>
+    )
   })
 }
