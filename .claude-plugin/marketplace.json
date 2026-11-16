@@ -1,0 +1,5 @@
+{
+  "name": "claude-surf-theme",
+  "owner": { "name": "shohammezan55-code" },
+  "plugins": [{ "name": "nami-waves", "source": "./" }]
+}
