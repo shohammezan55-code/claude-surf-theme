@@ -1,6 +1,5 @@
 import type { Register, ThemeSetArgs, Timer } from 'claude-code'
 
-import { FOAM_LAYER } from './foam.ts'
 import { makeColors } from './make-colors.js'
 import { RIDER, RIDER_DEFS } from './motion.ts'
 import { SCENE } from './scene.ts'
@@ -136,8 +135,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The still scene underneath, then the foam and the surfer's layers on top,
-  // moved left a little further on each step.
+  // The still scene underneath and the surfer's layers on top, moved left a
+  // little further on each step.
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.scene !== 'nami-layers' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
@@ -148,9 +147,6 @@ export const register: Register = on => {
     return (
       <Box position="relative" width="100%" height="100%">
         <Svg isInteractive source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
-        <Box position="absolute" top={step > STEPS / 2 ? 1 : 0} left={left} width="200%" height="100%">
-          <Svg isInteractive source={FOAM_LAYER} alt="Whitewater following the surfer along the wave" />
-        </Box>
         {RIDER_LAYERS.map((source, i) => (
           <Box
             position="absolute"
