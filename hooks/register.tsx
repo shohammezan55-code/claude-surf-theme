@@ -35,68 +35,49 @@ const { theme, problems } = makeColors({
   },
 })
 
-// The surfer rides in its own small drawing on top of the scene and animates
-// itself (SMIL), so the app never redraws anything: redrawing the backdrop made
-// the whole scene drop out for a moment a couple of times a second.
-// One pass along the wave takes PASS_S seconds, then it waits REST_S seconds.
-const PASS_S = 18
-const REST_S = 30
-const STEPS = 72
+// The app holds animation still in this backdrop, so the surfer moves like a
+// flipbook: a timer steps `frame` and asks for a redraw with the rider in a new
+// pose. On each redraw the app swaps in every image afresh and keeps only a
+// frame whose content has not changed, so the scene is drawn as a frame (it
+// stays put, never reloading) and the small surfer layer as an image.
+const FRAMES = 140
+const STEP_MS = 130
+let frame = 0
+let ticker: Timer | undefined
+
+// One pass along the wave, then a rest at the break with nothing redrawn.
+const REST_MS = 30 * 1000
+const REST_TICKS = Math.round(REST_MS / STEP_MS)
+let rest = 0
+
 const RUN = 1050
 const CARVES = 5
 
-function pose(t: number): { x: number; y: number; tilt: number; fade: number } {
+function pose(n: number): { x: number; y: number; tilt: number; fade: number } {
+  const t = (n % FRAMES) / FRAMES
   const wave = Math.sin(2 * Math.PI * CARVES * t)
 
   return {
-    x: 1250 - RUN * t,
-    y: 620 + 30 * t + 14 * wave,
-    tilt: 10 * Math.cos(2 * Math.PI * CARVES * t) - 13,
-    fade: Math.max(0, Math.min(1, t / 0.04, (1 - t) / 0.04)),
+    x: -RUN * t,
+    y: 30 * t + 14 * wave,
+    tilt: 10 * Math.cos(2 * Math.PI * CARVES * t),
+    // It waits at the break in full view, so it only fades out at the far end.
+    fade: Math.max(0.05, Math.min(1, (1 - t) / 0.06)),
   }
 }
 
-function riderLayer(): string {
-  const total = PASS_S + REST_S
+function riderLayer(n: number): string {
+  const { x, y, tilt, fade } = pose(n)
   const r = (v: number): string => v.toFixed(1)
-  const times: string[] = []
-  const moves: string[] = []
-  const turns: string[] = []
-  const fades: string[] = []
-
-  for (let i = 0; i <= STEPS; i += 1) {
-    const t = i / STEPS
-    const p = pose(t)
-    times.push(((t * PASS_S) / total).toFixed(4))
-    moves.push(`${r(p.x)} ${r(p.y)}`)
-    turns.push(`${r(p.tilt)} 40 60`)
-    fades.push(p.fade.toFixed(2))
-  }
-  // Hold at the start of the next pass, out of sight, through the rest.
-  const start = pose(0)
-  times.push('1')
-  moves.push(`${r(start.x)} ${r(start.y)}`)
-  turns.push(`${r(start.tilt)} 40 60`)
-  fades.push('0')
-
-  const anim = (attr: string, values: string[], type?: string): string =>
-    (type === undefined ? `<animate attributeName="${attr}"` : `<animateTransform attributeName="transform" type="${type}"`) +
-    ` dur="${total}s" repeatCount="indefinite" calcMode="linear" keyTimes="${times.join(';')}" values="${values.join(';')}"/>`
 
   return (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
     RIDER_DEFS +
-    // The still values are the pose at the break, so the surfer stays in view
-    // there if a surface doesn't run the animation.
-    `<g opacity="1">${anim('opacity', fades)}` +
-    `<g transform="translate(${moves[0]})">${anim('', moves, 'translate')}` +
-    `<g transform="rotate(${turns[0]})">${anim('', turns, 'rotate')}` +
+    `<g opacity="${fade.toFixed(2)}" transform="translate(${r(1250 + x)},${r(620 + y)}) rotate(${r(tilt - 13)} 40 60)">` +
     RIDER +
-    '</g></g></g></svg>'
+    '</g></svg>'
   )
 }
-
-const RIDER_LAYER = riderLayer()
 
 let retry: Timer | undefined
 
@@ -130,6 +111,19 @@ export const register: Register = on => {
       })
     })
 
+    ticker?.cancel()
+    ticker = $.clock.every(STEP_MS, () => {
+      if (rest > 0) {
+        rest -= 1
+        return
+      }
+      frame = (frame + 1) % FRAMES
+      if (frame === 0) {
+        rest = REST_TICKS
+      }
+      $.ui.invalidate('ui.render')
+    })
+
     // A reload can run before the window attaches; keep the status line clear.
     $.ui.status(undefined)
 
@@ -140,9 +134,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Two layers: the still scene underneath, and a small top layer where the
-  // surfer animates on its own. The desktop holds animation still in an image
-  // this close to a heavy scene, so the layer is drawn as its own frame.
+  // Two layers: the still scene underneath, as a frame the app keeps across
+  // redraws, and a small top layer redrawn with the surfer in each new pose.
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.scene !== 'nami-layers' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
@@ -151,13 +144,9 @@ export const register: Register = on => {
 
     return (
       <Box position="relative" width="100%" height="100%">
-        <Svg source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
+        <Svg isInteractive source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
         <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Svg
-            isInteractive
-            source={RIDER_LAYER}
-            alt="A little orange pixel character carving the wave"
-          />
+          <Svg source={riderLayer(frame)} alt="A little orange pixel character carving the wave" />
         </Box>
       </Box>
     )
