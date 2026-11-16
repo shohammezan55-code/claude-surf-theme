@@ -70,13 +70,13 @@ const RIDER_LAYERS = LEANS.map(riderLayer)
 // Where the surfer is on a step: columns left, rows down, and which lean.
 function pose(n: number): { left: number; top: number; lean: number } {
   const t = n / STEPS
-  const angle = 2 * Math.PI * CARVES * t
-  const slope = Math.cos(angle)
+  const height = Math.sin(2 * Math.PI * CARVES * t)
 
   return {
     left: -Math.round(RUN_COLUMNS * t),
-    top: Math.round(Math.sin(angle) + t),
-    lean: n === 0 ? 1 : slope > 0.4 ? 2 : slope < -0.4 ? 0 : 1,
+    top: Math.round(height + t),
+    // Nose down at the top of the face, about to drop in; level at the bottom.
+    lean: n === 0 ? 1 : height < -0.3 ? 0 : height > 0.3 ? 2 : 1,
   }
 }
 
