@@ -83,7 +83,9 @@ function pose(n: number): { x: number; y: number; tilt: number; fade: number } {
     x: -RUN * t,
     y: 30 * t + 14 * wave,
     tilt: 10 * Math.cos(2 * Math.PI * CARVES * t),
-    fade: Math.min(1, t / 0.06, (1 - t) / 0.06),
+    // Never fully transparent: a frame with nothing visible on the top layer
+    // made the app drop the whole backdrop for a frame at the loop's restart.
+    fade: Math.max(0.05, Math.min(1, (t + 1 / FRAMES) / 0.06, (1 - t) / 0.06)),
   }
 }
 
@@ -94,7 +96,7 @@ function riderLayer(n: number): string {
   return (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
     RIDER_DEFS +
-    `<g opacity="${r(fade)}" transform="translate(${r(1250 + x)},${r(620 + y)}) rotate(${r(tilt - 13)} 40 60)">` +
+    `<g opacity="${fade.toFixed(2)}"transform="translate(${r(1250 + x)},${r(620 + y)}) rotate(${r(tilt - 13)} 40 60)">` +
     RIDER +
     '</g></svg>'
   )
