@@ -42,6 +42,12 @@ const FRAMES = 140
 const STEP_MS = 130
 let frame = 0
 let ticker: Timer | undefined
+
+// Each redraw can make the window jump, so the surfer rides one pass and then
+// waits at the break for a few minutes, with nothing redrawn meanwhile.
+const REST_MS = 4 * 60 * 1000
+const REST_TICKS = Math.round(REST_MS / STEP_MS)
+let rest = 0
 let lease: Timer | undefined
 
 // The animation lease, shared by every session through the store.
@@ -85,7 +91,8 @@ function pose(n: number): { x: number; y: number; tilt: number; fade: number } {
     tilt: 10 * Math.cos(2 * Math.PI * CARVES * t),
     // Never fully transparent: a frame with nothing visible on the top layer
     // made the app drop the whole backdrop for a frame at the loop's restart.
-    fade: Math.max(0.05, Math.min(1, (t + 1 / FRAMES) / 0.06, (1 - t) / 0.06)),
+    // It waits at the break in full view, so it only fades out at the far end.
+    fade: Math.max(0.05, Math.min(1, (1 - t) / 0.06)),
   }
 }
 
@@ -138,7 +145,14 @@ export const register: Register = on => {
       if (!leading) {
         return
       }
+      if (rest > 0) {
+        rest -= 1
+        return
+      }
       frame = (frame + 1) % FRAMES
+      if (frame === 0) {
+        rest = REST_TICKS
+      }
       $.ui.invalidate('ui.render')
     })
 
