@@ -6,8 +6,8 @@
 
 const FRONT = 1345
 const END = 3100
-const TOP = 618
-const FOOT = 714
+const TOP = 648
+const FOOT = 704
 
 // A small fixed-seed generator, so the foam is the same drawing every time.
 function dice(seed: number): () => number {
@@ -27,28 +27,28 @@ function build(): string {
 
   // The body of the band, with a soft shadow along its foot.
   parts.push(
-    `<rect x="${FRONT + 14}" y="${TOP}" width="${END - FRONT}" height="${FOOT - TOP}" rx="26" fill="#eef4f8" opacity=".94"/>`,
-    `<rect x="${FRONT + 26}" y="${FOOT - 20}" width="${END - FRONT}" height="22" rx="11" fill="#a9c3d8" opacity=".75"/>`,
+    `<rect x="${FRONT + 14}" y="${TOP}" width="${END - FRONT}" height="${FOOT - TOP}" rx="20" fill="#eef4f8" opacity=".72"/>`,
+    `<rect x="${FRONT + 26}" y="${FOOT - 10}" width="${END - FRONT}" height="12" rx="6" fill="#a9c3d8" opacity=".5"/>`,
   )
   // Lumps along the top edge.
-  for (let x = FRONT + 20; x < END; x += 22 + roll() * 14) {
-    parts.push(`<circle cx="${n(x)}" cy="${n(TOP + roll() * 10 - 4)}" r="${n(13 + roll() * 11)}" fill="#fff"/>`)
+  for (let x = FRONT + 20; x < END; x += 20 + roll() * 16) {
+    parts.push(`<circle cx="${n(x)}" cy="${n(TOP + roll() * 8 - 2)}" r="${n(6 + roll() * 7)}" fill="#fff" opacity=".85"/>`)
   }
   // Blue-grey hollows inside the band.
-  for (let x = FRONT + 60; x < END; x += 46 + roll() * 50) {
+  for (let x = FRONT + 60; x < END; x += 70 + roll() * 70) {
     parts.push(
-      `<ellipse cx="${n(x)}" cy="${n(TOP + 34 + roll() * 40)}" rx="${n(16 + roll() * 22)}" ry="${n(5 + roll() * 6)}" fill="#c3d6e5" opacity=".7"/>`,
+      `<ellipse cx="${n(x)}" cy="${n(TOP + 18 + roll() * 22)}" rx="${n(12 + roll() * 16)}" ry="${n(3 + roll() * 3)}" fill="#c3d6e5" opacity=".7"/>`,
     )
   }
   // The tumbling front edge, and a little spray thrown ahead of it.
-  for (let i = 0; i < 16; i += 1) {
-    parts.push(
-      `<circle cx="${n(FRONT + roll() * 44)}" cy="${n(TOP + 4 + roll() * (FOOT - TOP - 14))}" r="${n(12 + roll() * 15)}" fill="#fff"/>`,
-    )
-  }
   for (let i = 0; i < 9; i += 1) {
     parts.push(
-      `<circle cx="${n(FRONT - 8 - roll() * 34)}" cy="${n(TOP - 18 + roll() * 46)}" r="${n(2 + roll() * 4)}" fill="#fff" opacity=".85"/>`,
+      `<circle cx="${n(FRONT + 4 + roll() * 30)}" cy="${n(TOP + 4 + roll() * (FOOT - TOP - 10))}" r="${n(7 + roll() * 9)}" fill="#fff" opacity=".9"/>`,
+    )
+  }
+  for (let i = 0; i < 5; i += 1) {
+    parts.push(
+      `<circle cx="${n(FRONT - 8 - roll() * 34)}" cy="${n(TOP - 12 + roll() * 30)}" r="${n(2 + roll() * 3)}" fill="#fff" opacity=".85"/>`,
     )
   }
 
