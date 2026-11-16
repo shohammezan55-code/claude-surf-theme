@@ -25,5 +25,5 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 ## Notes
 
 - The background is a vector scene (no images), kept under about 120,000 characters so the desktop app draws it.
-- The surfer moves in steps, twice a second, for one ride along the wave, then waits at the break for half a minute. The scene and the surfer are two frames that never change; a step only shifts the surfer's frame sideways, so nothing reloads.
+- The surfer moves in steps, twice a second, carving up and down the wave for one ride, then waits at the break for half a minute. The scene and the surfer (one frame per lean) never change; a step only shifts the surfer's frame and picks which lean shows, so nothing reloads.
 - Remove it with `/plugin uninstall nami-waves`.

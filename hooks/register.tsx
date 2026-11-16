@@ -41,20 +41,44 @@ const { theme, problems } = makeColors({
 // redraws; a step only moves the surfer's layer sideways (its Box offset), so
 // nothing is reloaded or swapped and the scene doesn't flicker.
 const STEP_MS = 500
-const STEPS = 36
+const STEPS = 26
 // The whole ride, in the Box's offset units (character cells).
-const RUN_COLUMNS = 120
+const RUN_COLUMNS = 108
 const REST_STEPS = 60
+const CARVES = 5
 let ticker: Timer | undefined
 let step = 0
 let rest = 0
 
-const RIDER_LAYER =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
-  RIDER_DEFS +
-  '<g transform="translate(1250,620) rotate(-13 40 60)">' +
-  RIDER +
-  '</g></svg>'
+// The surfer carves up and down the face as it goes. Its lean can't be redrawn
+// without a flicker, so there is one unchanging layer per lean and a step shows
+// the one that fits.
+const LEANS = [-23, -13, -3]
+
+function riderLayer(lean: number): string {
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
+    RIDER_DEFS +
+    `<g transform="translate(1250,620) rotate(${lean} 40 60)">` +
+    RIDER +
+    '</g></svg>'
+  )
+}
+
+const RIDER_LAYERS = LEANS.map(riderLayer)
+
+// Where the surfer is on a step: columns left, rows down, and which lean.
+function pose(n: number): { left: number; top: number; lean: number } {
+  const t = n / STEPS
+  const angle = 2 * Math.PI * CARVES * t
+  const slope = Math.cos(angle)
+
+  return {
+    left: -Math.round(RUN_COLUMNS * t),
+    top: Math.round(Math.sin(angle) + t),
+    lean: n === 0 ? 1 : slope > 0.4 ? 2 : slope < -0.4 ? 0 : 1,
+  }
+}
 
 let retry: Timer | undefined
 
@@ -118,14 +142,23 @@ export const register: Register = on => {
       return next(e)
     }
     const { Box, Svg } = $.ui.resolve(e)
-    const left = -Math.round((RUN_COLUMNS * step) / STEPS)
+    const { left, top, lean } = pose(step)
 
     return (
       <Box position="relative" width="100%" height="100%">
         <Svg isInteractive source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
-        <Box position="absolute" top={step > STEPS / 2 ? 1 : 0} left={left} width="100%" height="100%">
-          <Svg isInteractive source={RIDER_LAYER} alt="A little orange pixel character riding the wave" />
-        </Box>
+        {RIDER_LAYERS.map((source, i) => (
+          <Box
+            position="absolute"
+            top={top}
+            left={left}
+            width="100%"
+            height="100%"
+            display={i === lean ? 'flex' : 'none'}
+          >
+            <Svg isInteractive source={source} alt="A little orange pixel character carving the wave" />
+          </Box>
+        ))}
       </Box>
     )
   })
