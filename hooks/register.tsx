@@ -1,4 +1,4 @@
-import type { Register, ThemeSetArgs, Timer } from 'claude-code'
+import type { EngineInterface, Register, ThemeSetArgs, Timer } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
 import { RIDER, RIDER_DEFS } from './motion.ts'
@@ -42,6 +42,32 @@ const FRAMES = 140
 const STEP_MS = 130
 let frame = 0
 let ticker: Timer | undefined
+let lease: Timer | undefined
+
+// The animation lease, shared by every session through the store.
+const LEASE_KEY = 'animator'
+const LEASE_RENEW_MS = 2000
+const LEASE_STALE_MS = 6000
+const me = Math.random().toString(36).slice(2)
+let leading = false
+
+async function claimLease($: EngineInterface): Promise<void> {
+  try {
+    const now = await $.clock.now()
+    const held = (await $.store.get(LEASE_KEY)) as { id?: string; at?: number } | undefined
+    const free = held?.id === undefined || held.id === me || now - (held.at ?? 0) > LEASE_STALE_MS
+
+    if (free) {
+      await $.store.set(LEASE_KEY, { id: me, at: now })
+      const after = (await $.store.get(LEASE_KEY)) as { id?: string } | undefined
+      leading = after?.id === me
+    } else {
+      leading = false
+    }
+  } catch {
+    leading = false
+  }
+}
 
 // One pass along the whole wave: from the break on the right to the far end on
 // the left, carving up and down the face five times, fading in and out at the
@@ -88,8 +114,20 @@ export const register: Register = on => {
     }
     const set = await $.theme.set(LOOK)
 
+    // Every open session runs this mod, and each redraw of the backdrop can
+    // repaint the whole window, so only one session at a time animates: the one
+    // holding a lease in the shared store, renewed every couple of seconds and
+    // taken over by another session once it goes stale.
     ticker?.cancel()
+    lease?.cancel()
+    await claimLease($)
+    lease = $.clock.every(LEASE_RENEW_MS, () => {
+      void claimLease($)
+    })
     ticker = $.clock.every(STEP_MS, () => {
+      if (!leading) {
+        return
+      }
       frame = (frame + 1) % FRAMES
       $.ui.invalidate('ui.render')
     })
