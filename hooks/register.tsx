@@ -35,57 +35,26 @@ const { theme, problems } = makeColors({
   },
 })
 
-// The app holds animation still in this backdrop, so the surfer moves like a
-// flipbook: a redraw is asked for, and the hook draws the rider where it should
-// be at that moment. The scene is drawn as a frame, which the app keeps across
-// redraws; only the small surfer image is swapped.
-//
-// A redraw is a round trip to the app. Asking for the next one before the last
-// was drawn makes the app drop the answers, decide nothing draws the backdrop
-// and blank it for a moment, about twice a second. So the next redraw is only
-// asked for once the hook has drawn the last one, and the pose comes from the
-// clock, which keeps the surfer's speed the same however fast redraws go.
-const PASS_MS = 18 * 1000
-const REST_MS = 30 * 1000
-const TICK_MS = 60
-const SETTLE_MS = 110
-const MIN_GAP_MS = 200
-const GIVE_UP_MS = 3000
+// The app holds animation still in this backdrop and draws a change to it at
+// most twice a second, so the surfer moves in steps. Both layers are frames
+// with content that never changes, which the app keeps in place across
+// redraws; a step only moves the surfer's layer sideways (its Box offset), so
+// nothing is reloaded or swapped and the scene doesn't flicker.
+const STEP_MS = 500
+const STEPS = 36
+// The whole ride, in the Box's offset units (character cells).
+const RUN_COLUMNS = 120
+const REST_STEPS = 60
 let ticker: Timer | undefined
-// Time by counting ticks: the module has no clock of its own to read in a hook.
-let clockMs = 0
-let passStart = 0
-let askedAt = 0
-let drawnAt = 0
-let isAsked = false
+let step = 0
+let rest = 0
 
-const RUN = 1050
-const CARVES = 5
-
-// How far along the pass the surfer is, 0 at the break; 0 while it rests.
-function progress(now: number): number {
-  const t = (now - passStart) / PASS_MS
-
-  return t > 0 && t < 1 ? t : 0
-}
-
-function riderLayer(t: number): string {
-  const wave = Math.sin(2 * Math.PI * CARVES * t)
-  const x = 1250 - RUN * t
-  const y = 620 + 30 * t + 14 * wave
-  const tilt = 10 * Math.cos(2 * Math.PI * CARVES * t) - 13
-  // It waits at the break in full view, so it only fades out at the far end.
-  const fade = Math.max(0.05, Math.min(1, (1 - t) / 0.06))
-  const r = (v: number): string => v.toFixed(1)
-
-  return (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
-    RIDER_DEFS +
-    `<g opacity="${fade.toFixed(2)}" transform="translate(${r(x)},${r(y)}) rotate(${r(tilt)} 40 60)">` +
-    RIDER +
-    '</g></svg>'
-  )
-}
+const RIDER_LAYER =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
+  RIDER_DEFS +
+  '<g transform="translate(1250,620) rotate(-13 40 60)">' +
+  RIDER +
+  '</g></svg>'
 
 let retry: Timer | undefined
 
@@ -120,28 +89,15 @@ export const register: Register = on => {
     })
 
     ticker?.cancel()
-    passStart = clockMs
-    isAsked = false
-    ticker = $.clock.every(TICK_MS, () => {
-      clockMs += TICK_MS
-      const now = clockMs
-
-      if (now < passStart) {
+    ticker = $.clock.every(STEP_MS, () => {
+      if (rest > 0) {
+        rest -= 1
         return
       }
-      // Still waiting for the last redraw to be drawn, or it only just was.
-      if (isAsked && now - askedAt < GIVE_UP_MS) {
-        return
+      step = (step + 1) % (STEPS + 1)
+      if (step === 0) {
+        rest = REST_STEPS
       }
-      if (now - drawnAt < SETTLE_MS || now - askedAt < MIN_GAP_MS) {
-        return
-      }
-      if (now - passStart >= PASS_MS) {
-        // The pass is over: one last redraw puts it back at the break to rest.
-        passStart = now + REST_MS
-      }
-      isAsked = true
-      askedAt = now
       $.ui.invalidate('ui.render')
     })
 
@@ -155,23 +111,20 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Two layers: the still scene underneath, as a frame the app keeps across
-  // redraws, and a small top layer redrawn with the surfer in each new pose.
+  // Two layers: the still scene underneath and the surfer's layer on top, moved
+  // left a little further on each step.
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.scene !== 'nami-layers' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
     }
     const { Box, Svg } = $.ui.resolve(e)
-    const now = clockMs
-
-    drawnAt = now
-    isAsked = false
+    const left = -Math.round((RUN_COLUMNS * step) / STEPS)
 
     return (
       <Box position="relative" width="100%" height="100%">
         <Svg isInteractive source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
-        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Svg source={riderLayer(progress(now))} alt="A little orange pixel character carving the wave" />
+        <Box position="absolute" top={step > STEPS / 2 ? 1 : 0} left={left} width="100%" height="100%">
+          <Svg isInteractive source={RIDER_LAYER} alt="A little orange pixel character riding the wave" />
         </Box>
       </Box>
     )
