@@ -1,6 +1,6 @@
 import type { Register, ThemeSetArgs, Timer } from 'claude-code'
 
-import { BOAT_LAYER, FOG_LAYER, GULL_LAYERS, NIGHT_LAYER, SPLASH_LAYER } from './life.ts'
+import { BEACH_LAYER, BOAT_LAYER, FOG_LAYER, GULL_LAYERS, NIGHT_LAYER, SPLASH_LAYER } from './life.ts'
 import { makeColors } from './make-colors.js'
 import { RIDER, RIDER_DEFS } from './motion.ts'
 import { SCENE } from './scene.ts'
@@ -46,11 +46,11 @@ const STEP_MS = 500
 const SCENE_COLUMNS = 183
 const CARVES_PER_RIDE = 5
 
-// The surfer rides while Claude works and waits at the break while it waits for
-// you, with a ride of its own now and then so a quiet session isn't a still
-// picture. A finished turn gets a little hop; one that ends in an error, a
-// wipeout.
-type Mode = 'rest' | 'ride' | 'pause' | 'wipeout'
+// The surfer rides while Claude works: ride after ride, with a short wait at
+// the break between them. When Claude has finished and is waiting for you, it
+// stands on the beach with the board beside it. A finished turn gets a little
+// hop on the way; one that ends in an error, a wipeout.
+type Mode = 'beach' | 'ride' | 'pause' | 'wipeout'
 type Ride = { steps: number; columns: number; carves: number }
 
 const RIDES: readonly Ride[] = [
@@ -61,14 +61,12 @@ const RIDES: readonly Ride[] = [
 ]
 
 let ticker: Timer | undefined
-let mode: Mode = 'rest'
+let mode: Mode = 'beach'
 let ride: Ride = RIDES[0] as Ride
 let step = 0
 let wait = 0
 let hop = 0
 let isWorking = false
-// Steps until a ride of its own while nothing is happening.
-let idle = 90
 
 const between = (low: number, high: number): number => low + Math.floor(Math.random() * (high - low + 1))
 
@@ -87,38 +85,28 @@ function stepSurfer(): boolean {
     step += 1
     if (step > ride.steps) {
       step = 0
-      mode = isWorking ? 'pause' : 'rest'
+      mode = isWorking ? 'pause' : 'beach'
       wait = between(3, 8)
-      idle = between(240, 480)
     }
 
     return true
   }
   if (mode === 'wipeout' || mode === 'pause') {
     wait -= 1
-    if (wait > 0) {
+    if (wait > 0 && (isWorking || mode === 'wipeout')) {
       return false
     }
-    const wasUnder = mode === 'wipeout'
-
     step = 0
     if (isWorking) {
       startRide()
     } else {
-      mode = 'rest'
-      idle = between(240, 480)
+      mode = 'beach'
     }
-
-    return wasUnder || isWorking
-  }
-  // Resting at the break.
-  if (isWorking) {
-    startRide()
 
     return true
   }
-  idle -= 1
-  if (idle <= 0) {
+  // On the beach.
+  if (isWorking) {
     startRide()
 
     return true
@@ -280,6 +268,7 @@ export const register: Register = on => {
     const { Box, Svg } = $.ui.resolve(e)
     const { left, top, lean } = pose()
     const isUnder = mode === 'wipeout'
+    const isOnBeach = mode === 'beach'
     const areGullsOut = gullsIn === 0
     const layer = (
       source: string,
@@ -314,9 +303,10 @@ export const register: Register = on => {
           layer(source, 'A little orange pixel character carving the wave', {
             left,
             top,
-            isShown: !isUnder && i === lean,
+            isShown: !isUnder && !isOnBeach && i === lean,
           }),
         )}
+        {layer(BEACH_LAYER, 'The little orange character waiting on the beach, board in hand', { isShown: isOnBeach })}
         {layer(SPLASH_LAYER, 'A splash where the surfer went under', { left, top, isShown: isUnder })}
       </Box>
     )

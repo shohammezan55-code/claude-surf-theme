@@ -2,6 +2,8 @@
 // that never changes; the hook only slides its layer or shows and hides it,
 // which is the one kind of change the app draws without a flicker.
 
+import { RIDER, RIDER_DEFS } from './motion.ts'
+
 const OPEN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">'
 
 // Follows the app's light or dark mode, as the scene does.
@@ -120,8 +122,32 @@ function splash(): string {
   )
 }
 
+// The character waiting on the sand with the board stood up beside it, for when
+// there is nothing to ride for. Its body is the surfer's own pixels.
+function onBeach(): string {
+  const body = (RIDER.match(/<rect[^>]*\/>/g) ?? []).join('')
+
+  return (
+    OPEN +
+    RIDER_DEFS +
+    '<g transform="translate(1120,868)">' +
+    '<ellipse cx="62" cy="62" rx="84" ry="9" fill="url(#shg)" opacity=".8"/>' +
+    // The board, nose up, leaning a touch toward the character.
+    '<g transform="rotate(7 112 60)">' +
+    '<path d="M112,-78 C131,-44 134,22 122,60 L102,60 C90,22 93,-44 112,-78 Z" fill="#f2ede2"/>' +
+    '<path d="M112,-58 L112,54" stroke="#d97757" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="M122,60 C128,40 131,14 130,-12" stroke="#d8d0c0" stroke-width="2" fill="none" opacity=".7"/>' +
+    '</g>' +
+    body +
+    // An arm out to hold it.
+    '<rect x="84" y="24" width="14" height="6" fill="#c97661"/>' +
+    '</g></svg>'
+  )
+}
+
 export const NIGHT_LAYER = night()
 export const FOG_LAYER = fog()
 export const BOAT_LAYER = boat()
 export const GULL_LAYERS = [gulls(true), gulls(false)]
 export const SPLASH_LAYER = splash()
+export const BEACH_LAYER = onBeach()
