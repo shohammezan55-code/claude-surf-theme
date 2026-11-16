@@ -86,9 +86,11 @@ function riderLayer(): string {
   return (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
     RIDER_DEFS +
-    `<g opacity="0">${anim('opacity', fades)}` +
-    `<g>${anim('', moves, 'translate')}` +
-    `<g>${anim('', turns, 'rotate')}` +
+    // The still values are the pose at the break, so the surfer stays in view
+    // there if a surface doesn't run the animation.
+    `<g opacity="1">${anim('opacity', fades)}` +
+    `<g transform="translate(${moves[0]})">${anim('', moves, 'translate')}` +
+    `<g transform="rotate(${turns[0]})">${anim('', turns, 'rotate')}` +
     RIDER +
     '</g></g></g></svg>'
   )
@@ -139,7 +141,8 @@ export const register: Register = on => {
   })
 
   // Two layers: the still scene underneath, and a small top layer where the
-  // surfer animates on its own.
+  // surfer animates on its own. The desktop holds animation still in an image
+  // this close to a heavy scene, so the layer is drawn as its own frame.
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.scene !== 'nami-layers' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
@@ -150,7 +153,11 @@ export const register: Register = on => {
       <Box position="relative" width="100%" height="100%">
         <Svg source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
         <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Svg source={RIDER_LAYER} alt="A little orange pixel character carving the wave" />
+          <Svg
+            isInteractive
+            source={RIDER_LAYER}
+            alt="A little orange pixel character carving the wave"
+          />
         </Box>
       </Box>
     )
