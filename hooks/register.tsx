@@ -56,6 +56,7 @@ const LEASE_RENEW_MS = 2000
 const LEASE_STALE_MS = 6000
 const me = Math.random().toString(36).slice(2)
 let leading = false
+const THEME_RETRIES = 8
 
 async function claimLease($: EngineInterface): Promise<void> {
   try {
@@ -131,11 +132,16 @@ export const register: Register = on => {
     lease?.cancel()
     await claimLease($)
     // A session that starts before its window attaches isn't drawn, and the app
-    // then showed its default backdrop; set the look again until it draws.
+    // then showed its default backdrop; set the look again until it draws, but
+    // only for a short while: a session that never gets a window (one running in
+    // the background) kept setting it every two seconds, and each set repaints
+    // the whole window.
     let drawn = set.isDrawn
+    let retries = THEME_RETRIES
     lease = $.clock.every(LEASE_RENEW_MS, () => {
       void claimLease($)
-      if (!drawn) {
+      if (!drawn && retries > 0) {
+        retries -= 1
         void $.theme.set(LOOK).then(again => {
           drawn = again.isDrawn
         })
