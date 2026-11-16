@@ -1,4 +1,4 @@
-import type { EngineInterface, Register, ThemeSetArgs, Timer } from 'claude-code'
+import type { Register, ThemeSetArgs, Timer } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
 import { RIDER, RIDER_DEFS } from './motion.ts'
@@ -35,80 +35,68 @@ const { theme, problems } = makeColors({
   },
 })
 
-// The app holds animation still in this scene, so the surfer moves like a
-// flipbook: a timer steps `frame` and asks for a redraw of the small top layer
-// with the rider in a new pose. The scene underneath never changes.
-const FRAMES = 140
-const STEP_MS = 130
-let frame = 0
-let ticker: Timer | undefined
-
-// Each redraw can make the window jump, so the surfer rides one pass and then
-// waits at the break for a minute, with nothing redrawn meanwhile.
-const REST_MS = 60 * 1000
-const REST_TICKS = Math.round(REST_MS / STEP_MS)
-let rest = 0
-let lease: Timer | undefined
-
-// The animation lease, shared by every session through the store.
-const LEASE_KEY = 'animator'
-const LEASE_RENEW_MS = 2000
-const LEASE_STALE_MS = 6000
-const me = Math.random().toString(36).slice(2)
-let leading = false
-const THEME_RETRIES = 8
-
-async function claimLease($: EngineInterface): Promise<void> {
-  try {
-    const now = await $.clock.now()
-    const held = (await $.store.get(LEASE_KEY)) as { id?: string; at?: number } | undefined
-    const free = held?.id === undefined || held.id === me || now - (held.at ?? 0) > LEASE_STALE_MS
-
-    if (free) {
-      await $.store.set(LEASE_KEY, { id: me, at: now })
-      const after = (await $.store.get(LEASE_KEY)) as { id?: string } | undefined
-      leading = after?.id === me
-    } else {
-      leading = false
-    }
-  } catch {
-    leading = false
-  }
-}
-
-// One pass along the whole wave: from the break on the right to the far end on
-// the left, carving up and down the face five times, fading in and out at the
-// ends so the restart at the break doesn't jump.
+// The surfer rides in its own small drawing on top of the scene and animates
+// itself (SMIL), so the app never redraws anything: redrawing the backdrop made
+// the whole scene drop out for a moment a couple of times a second.
+// One pass along the wave takes PASS_S seconds, then it waits REST_S seconds.
+const PASS_S = 18
+const REST_S = 30
+const STEPS = 72
 const RUN = 1050
 const CARVES = 5
 
-function pose(n: number): { x: number; y: number; tilt: number; fade: number } {
-  const t = (n % FRAMES) / FRAMES
+function pose(t: number): { x: number; y: number; tilt: number; fade: number } {
   const wave = Math.sin(2 * Math.PI * CARVES * t)
 
   return {
-    x: -RUN * t,
-    y: 30 * t + 14 * wave,
-    tilt: 10 * Math.cos(2 * Math.PI * CARVES * t),
-    // Never fully transparent: a frame with nothing visible on the top layer
-    // made the app drop the whole backdrop for a frame at the loop's restart.
-    // It waits at the break in full view, so it only fades out at the far end.
-    fade: Math.max(0.05, Math.min(1, (1 - t) / 0.06)),
+    x: 1250 - RUN * t,
+    y: 620 + 30 * t + 14 * wave,
+    tilt: 10 * Math.cos(2 * Math.PI * CARVES * t) - 13,
+    fade: Math.max(0, Math.min(1, t / 0.04, (1 - t) / 0.04)),
   }
 }
 
-function riderLayer(n: number): string {
-  const { x, y, tilt, fade } = pose(n)
+function riderLayer(): string {
+  const total = PASS_S + REST_S
   const r = (v: number): string => v.toFixed(1)
+  const times: string[] = []
+  const moves: string[] = []
+  const turns: string[] = []
+  const fades: string[] = []
+
+  for (let i = 0; i <= STEPS; i += 1) {
+    const t = i / STEPS
+    const p = pose(t)
+    times.push(((t * PASS_S) / total).toFixed(4))
+    moves.push(`${r(p.x)} ${r(p.y)}`)
+    turns.push(`${r(p.tilt)} 40 60`)
+    fades.push(p.fade.toFixed(2))
+  }
+  // Hold at the start of the next pass, out of sight, through the rest.
+  const start = pose(0)
+  times.push('1')
+  moves.push(`${r(start.x)} ${r(start.y)}`)
+  turns.push(`${r(start.tilt)} 40 60`)
+  fades.push('0')
+
+  const anim = (attr: string, values: string[], type?: string): string =>
+    (type === undefined ? `<animate attributeName="${attr}"` : `<animateTransform attributeName="transform" type="${type}"`) +
+    ` dur="${total}s" repeatCount="indefinite" calcMode="linear" keyTimes="${times.join(';')}" values="${values.join(';')}"/>`
 
   return (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">' +
     RIDER_DEFS +
-    `<g opacity="${fade.toFixed(2)}" transform="translate(${r(1250 + x)},${r(620 + y)}) rotate(${r(tilt - 13)} 40 60)">` +
+    `<g opacity="0">${anim('opacity', fades)}` +
+    `<g>${anim('', moves, 'translate')}` +
+    `<g>${anim('', turns, 'rotate')}` +
     RIDER +
-    '</g></svg>'
+    '</g></g></g></svg>'
   )
 }
+
+const RIDER_LAYER = riderLayer()
+
+let retry: Timer | undefined
 
 const LOOK: ThemeSetArgs = {
   colors: theme,
@@ -124,42 +112,20 @@ export const register: Register = on => {
     }
     const set = await $.theme.set(LOOK)
 
-    // Every open session runs this mod, and each redraw of the backdrop can
-    // repaint the whole window, so only one session at a time animates: the one
-    // holding a lease in the shared store, renewed every couple of seconds and
-    // taken over by another session once it goes stale.
-    ticker?.cancel()
-    lease?.cancel()
-    await claimLease($)
     // A session that starts before its window attaches isn't drawn, and the app
-    // then showed its default backdrop; set the look again until it draws, but
-    // only for a short while: a session that never gets a window (one running in
-    // the background) kept setting it every two seconds, and each set repaints
-    // the whole window.
+    // then showed its default backdrop; set the look again a few times.
+    retry?.cancel()
     let drawn = set.isDrawn
-    let retries = THEME_RETRIES
-    lease = $.clock.every(LEASE_RENEW_MS, () => {
-      void claimLease($)
-      if (!drawn && retries > 0) {
-        retries -= 1
-        void $.theme.set(LOOK).then(again => {
-          drawn = again.isDrawn
-        })
-      }
-    })
-    ticker = $.clock.every(STEP_MS, () => {
-      if (!leading) {
+    let tries = 8
+    retry = $.clock.every(2000, () => {
+      if (drawn || tries <= 0) {
+        retry?.cancel()
         return
       }
-      if (rest > 0) {
-        rest -= 1
-        return
-      }
-      frame = (frame + 1) % FRAMES
-      if (frame === 0) {
-        rest = REST_TICKS
-      }
-      $.ui.invalidate('ui.render')
+      tries -= 1
+      void $.theme.set(LOOK).then(again => {
+        drawn = again.isDrawn
+      })
     })
 
     // A reload can run before the window attaches; keep the status line clear.
@@ -172,8 +138,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Two layers: the still scene underneath, and a small top layer redrawn with
-  // the surfer in each new pose.
+  // Two layers: the still scene underneath, and a small top layer where the
+  // surfer animates on its own.
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.scene !== 'nami-layers' || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
@@ -184,7 +150,7 @@ export const register: Register = on => {
       <Box position="relative" width="100%" height="100%">
         <Svg source={SCENE} alt="A sunset surf break and sandy beach below a fog-wrapped mountain" />
         <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Svg source={riderLayer(frame)} alt="A little orange pixel character carving the wave" />
+          <Svg source={RIDER_LAYER} alt="A little orange pixel character carving the wave" />
         </Box>
       </Box>
     )
