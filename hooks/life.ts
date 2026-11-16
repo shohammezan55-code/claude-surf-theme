@@ -130,7 +130,7 @@ function onBeach(): string {
   return (
     OPEN +
     RIDER_DEFS +
-    '<g transform="translate(1120,868)">' +
+    '<g transform="translate(1260,868)">' +
     '<ellipse cx="62" cy="62" rx="84" ry="9" fill="url(#shg)" opacity=".8"/>' +
     // The board, nose up, leaning a touch toward the character.
     '<g transform="rotate(7 112 60)">' +
