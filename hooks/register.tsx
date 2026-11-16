@@ -123,8 +123,16 @@ export const register: Register = on => {
     ticker?.cancel()
     lease?.cancel()
     await claimLease($)
+    // A session that starts before its window attaches isn't drawn, and the app
+    // then showed its default backdrop; set the look again until it draws.
+    let drawn = set.isDrawn
     lease = $.clock.every(LEASE_RENEW_MS, () => {
       void claimLease($)
+      if (!drawn) {
+        void $.theme.set(LOOK).then(again => {
+          drawn = again.isDrawn
+        })
+      }
     })
     ticker = $.clock.every(STEP_MS, () => {
       if (!leading) {
