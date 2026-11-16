@@ -44,8 +44,8 @@ let frame = 0
 let ticker: Timer | undefined
 
 // Each redraw can make the window jump, so the surfer rides one pass and then
-// waits at the break for a few minutes, with nothing redrawn meanwhile.
-const REST_MS = 4 * 60 * 1000
+// waits at the break for a minute, with nothing redrawn meanwhile.
+const REST_MS = 60 * 1000
 const REST_TICKS = Math.round(REST_MS / STEP_MS)
 let rest = 0
 let lease: Timer | undefined

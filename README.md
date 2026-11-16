@@ -25,5 +25,5 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 ## Notes
 
 - The background is a vector scene (no images), kept under about 120,000 characters so the desktop app draws it.
-- The desktop app holds CSS and SMIL animation still in a scene this detailed, so the surfer moves like a flipbook: a timer redraws a small top layer about 7 times a second. Redraws can make the window jump, so the surfer rides one pass about every four minutes and waits at the break in between, and only one open session animates at a time.
+- The desktop app holds CSS and SMIL animation still in a scene this detailed, so the surfer moves like a flipbook: a timer redraws a small top layer about 7 times a second. Redraws can make the window jump, so the surfer rides one pass about once a minute and waits at the break in between, and only one open session animates at a time.
 - Remove it with `/plugin uninstall nami-waves`.
