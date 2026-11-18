@@ -228,10 +228,6 @@ export const register: Register = on => {
     // A reload can run before the window attaches; keep the status line clear.
     $.ui.status(undefined)
 
-    if (!set.isDrawn) {
-      $.ui.log(`nami-waves: ${set.reason}`)
-    }
-
     return next(e)
   })
 
