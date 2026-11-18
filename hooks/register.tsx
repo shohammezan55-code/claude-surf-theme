@@ -184,6 +184,7 @@ function stepLife(): boolean {
 }
 
 let retry: Timer | undefined
+let isDrawn = false
 
 const LOOK: ThemeSetArgs = {
   colors: theme,
@@ -200,18 +201,20 @@ export const register: Register = on => {
     const set = await $.theme.set(LOOK)
 
     // A session that starts before its window attaches isn't drawn, and the app
-    // then showed its default backdrop; set the look again a few times.
+    // shows its default backdrop meanwhile. The attach hook below sets the look
+    // the moment a window joins; this also asks again a few times a second for
+    // a while, in case that moment was missed.
     retry?.cancel()
-    let drawn = set.isDrawn
-    let tries = 8
-    retry = $.clock.every(2000, () => {
-      if (drawn || tries <= 0) {
+    isDrawn = set.isDrawn
+    let tries = 40
+    retry = $.clock.every(400, () => {
+      if (isDrawn || tries <= 0) {
         retry?.cancel()
         return
       }
       tries -= 1
       void $.theme.set(LOOK).then(again => {
-        drawn = again.isDrawn
+        isDrawn = again.isDrawn
       })
     })
 
@@ -229,6 +232,17 @@ export const register: Register = on => {
     $.ui.status(undefined)
 
     return next(e)
+  })
+
+  // A window joined the session: draw the look in it right away.
+  on('session.attach', async ($, e, next) => {
+    const joined = await next(e)
+
+    if (!isDrawn && (e.surface === 'desktop' || e.surface === 'mobile')) {
+      isDrawn = (await $.theme.set(LOOK)).isDrawn
+    }
+
+    return joined
   })
 
   // The surfer follows the main conversation's turns, not a subagent's.
